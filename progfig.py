@@ -72,7 +72,34 @@ def generate_regular_points(spacing, size):
     return points
 
 
-def add_randomness(points, randomness_x=None, randomness_y=None, randomness_z=None):
+def hexatic_offset(points):
+    """
+    Offsets the points by half the spacing between points in alternating rows.
+    
+    Parameters:
+    points (numpy.ndarray): Array of regular points in a cubic grid.
+    
+    Returns:
+    numpy.ndarray: Array of offset points.
+    """
+    spacing = np.sum(points[1] - points[0])
+    print(spacing)
+    offset_points = points.copy()
+
+    # determine how many points per length were used in the generate_regular_points call
+    points_per_length = int(np.sqrt(np.unique(points[:,0],return_counts=True)[1][0]))  
+        
+    #offset_points[::points_per_length, 1] += spacing
+    
+    #works but fragile; needs to include the spacing in the mod call.
+    for n in range(len(offset_points)):
+        if np.mod((offset_points[n,0]+spacing*2),spacing*2) == 0:
+            offset_points[n,1] = offset_points[n,1]+(spacing/2)           
+            
+    return offset_points
+
+
+def add_randomness(points, randomness_x=0.0, randomness_y=None, randomness_z=None):
     """
     Adds random displacements to points based on the specified randomness in each dimension.
 
