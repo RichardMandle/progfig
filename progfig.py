@@ -24,12 +24,15 @@ make_apolar(points, vectors)                - nulifies <P1> by flipping half of 
 plotting functions:
 plot_points(points)                         - plot an array of points in 3D (scatter)
 
-plot_vectors(points,                        - plot vecetors in 3D to reveal nematic order
-            vectors,                          vectors defined by "points" and "vectors"
-            fig = False,                      plots to "fig"; creates new figure if False
-            ax = False,                       plots to "ax"; creates new axis if False
-            colors='p1',                      colouring according to 'p1' or 'p2'
-            apolar=False)                     creates apolar nematic if False, polar if True
+def plot_vectors(points,                    - plot vecetors in 3D to reveal nematic order
+vectors,                                      vectors defined by "points" and "vectors"
+fig = False,                                  plots to "fig"; creates new figure if False
+ax = False,                                   plots to "ax"; creates new axis if False
+box=False,                                    colouring according to 'p1' or 'p2'
+colors='p1',                                  creates apolar nematic if False, polar if True
+apolar=False,                                 box controls wether or not to draw a box around it all
+color_map='magma_r'):                         color_map allows to select the colormap used.
+
 
 plot_ellipsoid(points,                      - plot ellipsoids in 3D to reveal nematic order
                 vectors,                      ellipsoids centred at points, aligned with length along "vectors"
@@ -41,6 +44,9 @@ plot_ellipsoid(points,                      - plot ellipsoids in 3D to reveal ne
                 overlap_threshold=3.0)        checks for overlap of ellipsoids and prunes contacts
 
 inspect_angles                              - produces a histogram of angles between vectors and resulting P1,P2 values.
+make_a_box(points,                          - used to plot a 3D box around vector or ellipspoid plots.
+            fig=False,
+            ax=False):
 
 Example usage:
 points = progfig.generate_regular_points(0.5,5)
@@ -72,13 +78,16 @@ def generate_regular_points(spacing, size):
     return points
 
 
-def hexatic_offset(points):
+def hexatic_offset(points,plane_offset=False):
     """
     Offsets the points by half the spacing between points in alternating rows.
     
+    You can combine with random-disorder to create hexatic lamellar structures.
+    
     Parameters:
     points (numpy.ndarray): Array of regular points in a cubic grid.
-    
+    plane_offset: if True, each layer is offset in x and y by 1/2 of the spacing, mimicing FCP packing (roughly).
+                  if False, its more of a pure hexagonal packing.
     Returns:
     numpy.ndarray: Array of offset points.
     """
@@ -95,9 +104,15 @@ def hexatic_offset(points):
     for n in range(len(offset_points)):
         if np.mod((offset_points[n,0]+spacing*2),spacing*2) == 0:
             offset_points[n,1] = offset_points[n,1]+(spacing/2)           
-            
-    return offset_points
+    
+    if plane_offset==True:
+            for n in range(len(offset_points)):
+                if offset_points[n,2]%(spacing*2) == 0:
+                    offset_points[n,0] = offset_points[n,0] + spacing/2
+                    offset_points[n,1] = offset_points[n,1] + spacing/2
 
+    return offset_points
+  
 
 def add_randomness(points, randomness_x=0.0, randomness_y=None, randomness_z=None):
     """
@@ -134,6 +149,32 @@ def add_randomness(points, randomness_x=0.0, randomness_y=None, randomness_z=Non
     return random_points
 
 
+def add_tilt(points, vectors, tilt_angle=20, rotation_axis=[1, 0, 0]):
+    # Convert vectors to numpy array
+    vectors = np.array(vectors)
+    
+    # Normalize rotation axis
+    rotation_axis = np.array(rotation_axis)
+    rotation_axis = rotation_axis.astype(float) / np.linalg.norm(rotation_axis)
+    
+    # Convert tilt angle to radians
+    tilt_angle_rad = np.radians(tilt_angle)
+    
+    # Create rotation matrix
+    c = np.cos(tilt_angle_rad)
+    s = np.sin(tilt_angle_rad)
+    rotation_matrix = np.array([
+        [c + rotation_axis[0]**2 * (1 - c), rotation_axis[0] * rotation_axis[1] * (1 - c) - rotation_axis[2] * s, rotation_axis[0] * rotation_axis[2] * (1 - c) + rotation_axis[1] * s],
+        [rotation_axis[1] * rotation_axis[0] * (1 - c) + rotation_axis[2] * s, c + rotation_axis[1]**2 * (1 - c), rotation_axis[1] * rotation_axis[2] * (1 - c) - rotation_axis[0] * s],
+        [rotation_axis[2] * rotation_axis[0] * (1 - c) - rotation_axis[1] * s, rotation_axis[2] * rotation_axis[1] * (1 - c) + rotation_axis[0] * s, c + rotation_axis[2]**2 * (1 - c)]
+    ])
+    
+    # Apply rotation to vectors
+    new_vectors = np.dot(rotation_matrix, vectors.T).T
+    
+    return points, new_vectors
+    
+
 def define_vectors(points, vector_length, P2):
     """
     Defines random vectors based on the specified points, vector length, and P2 value.
@@ -163,11 +204,6 @@ def define_vectors(points, vector_length, P2):
         # Generate a random angle from a Gaussian distribution
         phi = np.random.normal(loc=0, scale=standard_deviation)
 
-        # Clamp the angle within the valid range
-        #phi = np.clip(phi, 
-        #              -average_angle, 
-        #              average_angle)
-#
         # Convert spherical angles to Cartesian coordinates
         x = np.sin(np.radians(phi)) * np.cos(theta)
         y = np.sin(np.radians(phi)) * np.sin(theta)
@@ -334,8 +370,8 @@ def make_apolar(points, vectors):
     vectors (numpy.ndarray): An array of vectors with shape (N, 3).
     
     Returns:
-    numpy.ndarray: Modified points with polar order removed.
-    numpy.ndarray: Modified vectors with polar order removed.
+    modified_points: Modified points with polar order removed.
+    modified_vectors: Modified vectors with polar order removed.
     """
     modified_vectors = vectors.copy()
     modified_points = points.copy()
@@ -348,7 +384,7 @@ def make_apolar(points, vectors):
     return modified_points, modified_vectors
    
  
-def plot_vectors(points, vectors, fig = False, ax = False, colors='p1', apolar=False):
+def plot_vectors(points, vectors, fig = False, ax = False, box=False, colors='p1', apolar=False,color_map='magma_r'):
     """
     Plots the given vectors originating from the given points in a 3D quiver plot.
     
@@ -373,12 +409,20 @@ def plot_vectors(points, vectors, fig = False, ax = False, colors='p1', apolar=F
     
     p1, p1_array, _, _, _, _  = calculate_average_angle(local_vectors)
     
-    if colors:
-        color_array = p2_array if apolar else p1_array
-        color_label = 'P2' if apolar else 'P1'
-        print('Colouring according to', color_label, 'values')
 
-    vector_colors = plt.cm.magma_r(color_array)
+    if colors.lower() is 'p1' or 'p2':
+        color_array = p1_array if (colors.lower() == 'p1') else p2_array
+        color_label =  'P1' if (colors.lower() == 'p1') else 'P2'
+    
+    else:    
+        color_array = p2_array if apolar else p1_array
+        color_label =  'P2' if apolar else 'P1'
+        print(color_label)
+        #color_label = 'P2' if apolar else 'P1'   
+        
+    print('Colouring according to', color_label, 'values')
+
+    vector_colors = getattr(plt.cm, color_map)(color_array)
 
     ax.quiver(local_points[:, 0], 
               local_points[:, 1], 
@@ -387,30 +431,25 @@ def plot_vectors(points, vectors, fig = False, ax = False, colors='p1', apolar=F
               local_vectors[:, 1], 
               local_vectors[:, 2],
               colors=vector_colors,
-              cmap='magma')
+              cmap=color_map)
 
     ax.grid(False)  # Remove grid
-    ax.set_axis_off()  # Remove axes
     ax.set_box_aspect([1, 1, 1])  # Remove box
     
-    # add colorbar
-    if colors:
-        colormap = cm.get_cmap('magma_r')
-        cbar_label = r'$\mathregular{P1}$' if not apolar else r'$\mathregular{P2}$'  # add label
-        cbar_ticks = np.linspace(-0.5, 1, 6) if not apolar else np.linspace(0, 1, 6) #set limit
-        cbar = fig.colorbar(cm.ScalarMappable(cmap=colormap), 
-                            ax=ax, 
-                            ticks=cbar_ticks,
-                            shrink=0.5)
-        cbar.ax.set_ylabel(cbar_label, rotation=0, labelpad=10, fontstyle='italic')
-
-    plt.show()
+    ax.set_axis_off()  # Remove axes
+    
+    if box == True:
+        make_a_box(local_points,fig=fig,ax=ax)
+        
+    add_color_bar(color_map,color_label,apolar,fig=fig,ax=ax)     # add colorbar
     
     print("P1 = " + str(np.round(p1, 3)))    
     print("P2 = " + str(np.round(p2, 3)))
     
-
-def plot_ellipsoid(points, vectors, fig=False, ax=False, color=True, apolar=False, aspect_ratio=3.0, overlap_threshold=3.0):
+    plt.show()
+    
+    
+def plot_ellipsoid(points, vectors, fig=False, ax=False, box=False, colors='p1', apolar=False, aspect_ratio=3.0, overlap_threshold=1.0,color_map='magma_r'):
     """
     Plots ellipsoids defined by the given points and vectors in a 3D plot.
     
@@ -436,16 +475,29 @@ def plot_ellipsoid(points, vectors, fig=False, ax=False, color=True, apolar=Fals
         local_points, local_vectors = make_apolar(local_points, local_vectors)
     
     p1,p1_array,_,_,_,_  = calculate_average_angle(local_vectors)
-
-    if color:
+    
+    #colouring
+    if colors.lower() is 'p1' or 'p2':
+        color_array = p1_array if (colors.lower() == 'p1') else p2_array
+        color_label =  'P1' if (colors.lower() == 'p1') else 'P2'
+    
+    else:    
         color_array = p2_array if apolar else p1_array
-        color_label = 'P2' if apolar else 'P1'
-        print('Colouring according to', color_label, 'values')
+        color_label =  'P2' if apolar else 'P1'
+        print(color_label)
+    colormap = cm.get_cmap(getattr(plt.cm, color_map))#(color_array))    
 
-        colormap = cm.get_cmap('magma_r')
+    ellipsoid_centers = []
+    
+    print('Colouring according to', color_label, 'values')
 
-        ellipsoid_centers = []
-        
+    vector_colors = getattr(plt.cm, color_map)(color_array)
+    
+    #if color:
+    #    color_array = p2_array if apolar else p1_array
+    #    color_label = 'P2' if apolar else 'P1'
+    #    print('Colouring according to', color_label, 'values')
+    
     for point, vector, c in zip(local_points, local_vectors, color_array):
         ellipsoid_center = point
         ellipsoid_length = np.linalg.norm(vector)
@@ -492,22 +544,18 @@ def plot_ellipsoid(points, vectors, fig=False, ax=False, color=True, apolar=Fals
 
     ax.grid(False)  # Remove grid
     ax.set_axis_off()  # Remove axes
-    ax.set_box_aspect([1, 1, 1])  # Remove box
     
-    # add colorbar
-    if color:
-        cbar_label = r'$\mathregular{P1}$' if not apolar else r'$\mathregular{P2}$'
-        cbar_ticks = np.linspace(-0.5, 1, 6) if not apolar else np.linspace(0, 1, 6)
-        cbar = fig.colorbar(cm.ScalarMappable(cmap=colormap), 
-                            ax=ax, 
-                            ticks=cbar_ticks,
-                            shrink=0.5)
-        cbar.ax.set_ylabel(cbar_label, rotation=0, labelpad=10, fontstyle='italic')
+    if box == True:
+        make_a_box(local_points,fig=fig,ax=ax)
+        
+    ax.set_box_aspect([1, 1, 1])  
+    
+    add_color_bar(color_map,color_label,apolar,fig=fig,ax=ax)     # add colorbar
 
-    plt.show()
-    
-    print("P1 = " + str(np.round(p1, 3)))  
+    print("P1 = " + str(np.round(p1, 3)))    
     print("P2 = " + str(np.round(p2, 3)))
+    
+    plt.show()
     
     return
     
@@ -530,3 +578,50 @@ def inspect_angles(vectors):
     plt.show()
     
     return p2
+
+def make_a_box(points,fig=False,ax=False):
+    '''
+    simply makes a box around some 3d data.
+    '''
+
+    max_val = np.round(np.max([points]),1)  # Replace with your measured value
+    box_vertices = [
+        [0, 0, 0],
+        [0, 0, max_val],
+        [0, max_val, max_val],
+        [0, max_val, 0],
+        [max_val, 0, 0],
+        [max_val, 0, max_val],
+        [max_val, max_val, max_val],
+        [max_val, max_val, 0]
+    ]
+
+    # Connect vertices to form the box
+    edges = [
+        [0, 1], [1, 2], [2, 3], [3, 0],  # Bottom square
+        [4, 5], [5, 6], [6, 7], [7, 4],  # Top square
+        [0, 4], [1, 5], [2, 6], [3, 7]   # Connecting edges
+    ]
+
+    # Plot the box edges
+    for edge in edges:
+        x_values = [box_vertices[edge[0]][0], box_vertices[edge[1]][0]]
+        y_values = [box_vertices[edge[0]][1], box_vertices[edge[1]][1]]
+        z_values = [box_vertices[edge[0]][2], box_vertices[edge[1]][2]]
+        ax.plot(x_values, y_values, z_values, color='black')
+
+    
+def add_color_bar(color_map,color_label,apolar=False,fig=False,ax=False):
+    '''
+    function that handles drawing a color bar for various plots
+    '''
+
+    colormap = cm.get_cmap(color_map)
+    cbar_label = r'$\mathregular{P1}$' if (color_label == 'P1') else r'$\mathregular{P2}$'  # add label
+    cbar_ticks = np.linspace(-0.5, 1, 6) if not apolar else np.linspace(0, 1, 6) #set limit
+    cbar = fig.colorbar(cm.ScalarMappable(cmap=colormap), 
+                        ax=ax, 
+                        ticks=cbar_ticks,
+                        shrink=0.5)
+    cbar.ax.set_ylabel(cbar_label, rotation=0, labelpad=10, fontstyle='italic')
+
