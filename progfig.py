@@ -57,6 +57,94 @@ progfig.plot_ellipsoid(points, vectors,aspect_ratio=4,overlap_threshold=0.75,apo
 
 '''
 
+def make_apolar_nematic_vectors(spacing=0.5,size=5,randomness=0.375,vector_length=0.5,p2=0.6,color='p2'):
+
+    points = generate_regular_points(spacing,size)
+    points = add_randomness(points,
+                            randomness_x=randomness,
+                            randomness_y=randomness,
+                            randomness_z=randomness)
+
+    vectors = define_vectors(points,vector_length,p2)
+
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    
+    plot_vectors(points,
+             vectors,
+             fig = fig,
+             ax = ax,
+             colors=color,
+             apolar=True,
+             box=True,
+             color_map='bwr')
+             
+def make_polar_nematic_vectors(spacing=0.5,size=5,randomness=0.375,vector_length=0.5,p2=0.5,color='p1'):
+
+    points = generate_regular_points(spacing,size)
+    points = add_randomness(points,
+                            randomness_x=randomness,
+                            randomness_y=randomness,
+                            randomness_z=randomness)
+
+    vectors = define_vectors(points,vector_length,p2)
+
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    
+    plot_vectors(points,
+             vectors,
+             fig = fig,
+             ax = ax,
+             colors=color,
+             apolar=False,
+             box=True,
+             color_map='bwr')
+
+def make_apolar_smectic_vectors(spacing=0.5,size=5,randomness=0.375,vector_length=0.5,p2=0.6,color='p2'):
+
+    points = generate_regular_points(spacing,size)
+    points = add_randomness(points,
+                            randomness_x=randomness,
+                            randomness_y=randomness,
+                            randomness_z=randomness/25)
+
+    vectors = define_vectors(points,vector_length,p2)
+
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    
+    plot_vectors(points,
+             vectors,
+             fig = fig,
+             ax = ax,
+             colors=color,
+             apolar=True,
+             box=True,
+             color_map='bwr')
+             
+def make_polar_smectic_vectors(spacing=0.5,size=5,randomness=0.375,vector_length=0.5,p2=0.5,color='p1'):
+
+    points = generate_regular_points(spacing,size)
+    points = add_randomness(points,
+                            randomness_x=randomness,
+                            randomness_y=randomness,
+                            randomness_z=randomness/25)
+
+    vectors = define_vectors(points,vector_length,p2)
+
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    
+    plot_vectors(points,
+             vectors,
+             fig = fig,
+             ax = ax,
+             colors=color,
+             apolar=False,
+             box=True,
+             color_map='bwr')    
+    
 def generate_regular_points(spacing, size):
     """
     Generates regular points in a cubic grid with a given spacing and size.
@@ -225,7 +313,7 @@ def angle_between(v1, v2):
             >>> angle_between((1, 0, 0), (0, 1, 0))
             1.5707963267948966
             >>> angle_between((1, 0, 0), (1, 0, 0))
-            0.0
+            0.i
             >>> angle_between((1, 0, 0), (-1, 0, 0))
             3.141592653589793
     """
@@ -349,7 +437,7 @@ def plot_points(points):
     points (numpy.ndarray): An array of points with shape (N, 3).
     """
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    ax = plt.axes(projection='3d')
     ax.scatter(points[:, 0], points[:, 1], points[:, 2], c='blue', marker='o')
 
     # Set labels and title
@@ -398,7 +486,7 @@ def plot_vectors(points, vectors, fig = False, ax = False, box=False, colors='p1
         fig = plt.figure()
         
     if not ax:
-        ax = fig.add_subplot(111, projection='3d')
+        ax = plt.axes(projection='3d')
         
     local_points, local_vectors = points, vectors
     
