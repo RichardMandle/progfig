@@ -1,118 +1,118 @@
 import sys
+import json
 import numpy as np
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QLabel, QCheckBox, QComboBox, QColorDialog, QDialog, QFormLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QLabel, QCheckBox, QComboBox, QColorDialog, QGridLayout
 from PyQt5.QtGui import QPixmap, QIcon, QImage
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from point_generation import generate_regular_points, hexatic_offset, add_randomness, define_vectors, add_tilt, calculate_average_angle, compute_director
 from visualization import MayaviQWidget
 from mayavi.core.lut_manager import lut_mode_list
+from adv_vis_settings import AdvancedVisualizationSettings
+from block_settings import BlockSettingsDialog
 
-class BlockSettingsDialog(QDialog):
-    def __init__(self, parent=None):
-        super(BlockSettingsDialog, self).__init__(parent)
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle('Block Settings')
-        layout = QFormLayout()
-
-        self.block_distance_x_input = QLineEdit(self)
-        self.block_rotation_x_input = QLineEdit(self)
-        self.block_distance_y_input = QLineEdit(self)
-        self.block_rotation_y_input = QLineEdit(self)
-        self.block_distance_z_input = QLineEdit(self)
-        self.block_rotation_z_input = QLineEdit(self)
-
-        layout.addRow('Block Distance X:', self.block_distance_x_input)
-        layout.addRow('Block Rotation X:', self.block_rotation_x_input)
-        layout.addRow('Block Distance Y:', self.block_distance_y_input)
-        layout.addRow('Block Rotation Y:', self.block_rotation_y_input)
-        layout.addRow('Block Distance Z:', self.block_distance_z_input)
-        layout.addRow('Block Rotation Z:', self.block_rotation_z_input)
+def get_defaults():
+    '''
+    Load some default image/phase types from our json file
+    '''
+    with open('phase_types.json', 'r') as f:
+        return json.load(f)
         
-        self.block_distance_x_input.setText('0.0')
-        self.block_rotation_x_input.setText('0.0')
-        self.block_distance_y_input.setText('0.0')
-        self.block_rotation_y_input.setText('0.0')
-        self.block_distance_z_input.setText('0.0')
-        self.block_rotation_z_input.setText('0.0')
-        
-        save_button = QPushButton('Save', self)
-        save_button.clicked.connect(self.accept)
-        layout.addWidget(save_button)
-
-        self.setLayout(layout)
-
-    def get_block_settings(self):
-        return {
-            'block_distance_x': float(self.block_distance_x_input.text()),
-            'block_rotation_x': float(self.block_rotation_x_input.text()),
-            'block_distance_y': float(self.block_distance_y_input.text()),
-            'block_rotation_y': float(self.block_rotation_y_input.text()),
-            'block_distance_z': float(self.block_distance_z_input.text()),
-            'block_rotation_z': float(self.block_rotation_z_input.text())
-        }
-
 class MainApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.default_params = get_defaults()
         self.initUI()
         self.coordinates = None
         self.vectors = None
         self.previous_options = {}
         self.block_settings = {}
+        self.adv_vis_settings = {
+            'cylinder_resolution': 20,
+            'cylinder_sides': 4,
+            'aspect_ratio': 8,
+            'draw_director': False,
+            'draw_layer_planes': False,
+            'draw_bounding_box': False
+        }
 
     def initUI(self):
         self.setWindowTitle('Point Generation and Visualization')
         main_layout = QHBoxLayout()
         options_layout = QVBoxLayout()
 
-        self.spacing_label = QLabel('Spacing X:')
+        spacing_grid = QGridLayout()
+        size_grid = QGridLayout()
+        randomness_grid = QGridLayout()
+
+        spacing_label = QLabel('Spacing:')
+        size_label = QLabel('Size:')
+        randomness_label = QLabel('Randomness:')
+
         self.spacing_x_input = QLineEdit(self)
-        self.spacing_x_input.setText('1.0')
-
-        self.spacing_y_label = QLabel('Spacing Y:')
+        self.spacing_x_input.setFixedWidth(30)
+        self.spacing_x_input.setText('0.6')
         self.spacing_y_input = QLineEdit(self)
-        self.spacing_y_input.setText('1.0')
-
-        self.spacing_z_label = QLabel('Spacing Z:')
+        self.spacing_y_input.setFixedWidth(30)
+        self.spacing_y_input.setText('0.6')
         self.spacing_z_input = QLineEdit(self)
-        self.spacing_z_input.setText('1.0')
+        self.spacing_z_input.setFixedWidth(30)
+        self.spacing_z_input.setText('1.2')
 
-        self.size_x_label = QLabel('Size X:')
         self.size_x_input = QLineEdit(self)
         self.size_x_input.setText('5.0')
-
-        self.size_y_label = QLabel('Size Y:')
+        self.size_x_input.setFixedWidth(30)
         self.size_y_input = QLineEdit(self)
         self.size_y_input.setText('5.0')
-
-        self.size_z_label = QLabel('Size Z:')
+        self.size_y_input.setFixedWidth(30)
         self.size_z_input = QLineEdit(self)
         self.size_z_input.setText('5.0')
+        self.size_z_input.setFixedWidth(30)
+        
+        self.randomness_x_input = QLineEdit(self)
+        self.randomness_x_input.setText('0.1')
+        self.randomness_x_input.setFixedWidth(30)
+        self.randomness_y_input = QLineEdit(self)
+        self.randomness_y_input.setText('0.1')
+        self.randomness_y_input.setFixedWidth(30)
+        self.randomness_z_input = QLineEdit(self)
+        self.randomness_z_input.setText('0.1')
+        self.randomness_z_input.setFixedWidth(30)
+
+        spacing_grid.addWidget(QLabel('X:'), 0, 0)
+        spacing_grid.addWidget(self.spacing_x_input, 0, 1)
+        spacing_grid.addWidget(QLabel('Y:'), 0, 2)
+        spacing_grid.addWidget(self.spacing_y_input, 0, 3)
+        spacing_grid.addWidget(QLabel('Z:'), 0, 4)
+        spacing_grid.addWidget(self.spacing_z_input, 0, 5)
+
+        size_grid.addWidget(QLabel('X:'), 0, 0)
+        size_grid.addWidget(self.size_x_input, 0, 1)
+        size_grid.addWidget(QLabel('Y:'), 0, 2)
+        size_grid.addWidget(self.size_y_input, 0, 3)
+        size_grid.addWidget(QLabel('Z:'), 0, 4)
+        size_grid.addWidget(self.size_z_input, 0, 5)
+
+        randomness_grid.addWidget(QLabel('X:'), 0, 0)
+        randomness_grid.addWidget(self.randomness_x_input, 0, 1)
+        randomness_grid.addWidget(QLabel('Y:'), 0, 2)
+        randomness_grid.addWidget(self.randomness_y_input, 0, 3)
+        randomness_grid.addWidget(QLabel('Z:'), 0, 4)
+        randomness_grid.addWidget(self.randomness_z_input, 0, 5)
 
         self.hexatic_checkbox = QCheckBox('In-plane hexatic order?', self)
 
-        self.randomness_x_label = QLabel('Randomness X:')
-        self.randomness_x_input = QLineEdit(self)
-        self.randomness_x_input.setText('0.0')
-
-        self.randomness_y_label = QLabel('Randomness Y:')
-        self.randomness_y_input = QLineEdit(self)
-        self.randomness_y_input.setText('0.0')
-
-        self.randomness_z_label = QLabel('Randomness Z:')
-        self.randomness_z_input = QLineEdit(self)
-        self.randomness_z_input.setText('0.0')
-
         self.P2_label = QLabel('P2 (Nematic Order Parameter):')
         self.P2_input = QLineEdit(self)
-        self.P2_input.setText('0.7')
+        self.P2_input.setText('1.0')
 
-        self.tilt_angle_label = QLabel('Tilt Angle:')
-        self.tilt_angle_input = QLineEdit(self)
-        self.tilt_angle_input.setText('0')
+        self.tilt_angle_x_label = QLabel('Tilt Angle X:')
+        self.tilt_angle_x_input = QLineEdit(self)
+        self.tilt_angle_x_input.setText('0')
+
+        self.tilt_angle_y_label = QLabel('Tilt Angle Y:')
+        self.tilt_angle_y_input = QLineEdit(self)
+        self.tilt_angle_y_input.setText('0')
 
         self.polar_checkbox = QCheckBox('Polar?', self)
 
@@ -126,33 +126,26 @@ class MainApp(QWidget):
 
         self.draw_style_label = QLabel('Drawing Style:')
         self.draw_style_dropdown = QComboBox(self)
-        self.draw_style_dropdown.addItems(['cylinder', 'quiver'])
+        self.draw_style_dropdown.addItems(['quiver', 'cylinder'])
 
-        self.aspect_ratio_label = QLabel('Aspect Ratio:')
-        self.aspect_ratio_input = QLineEdit(self)
-        self.aspect_ratio_input.setText('8')
-
-        self.draw_box_checkbox = QCheckBox('Draw Bounding Box?', self)
-        self.draw_box_checkbox.setChecked(True)
-        
         self.default_params_label = QLabel('Default Parameters:')
         self.default_params_dropdown = QComboBox(self)
-        self.default_params_dropdown.addItems(['Default', 'Nematic', 'Smectic A', 'Smectic B', 'Smectic C'])
+        self.default_params_dropdown.addItems(self.default_params.keys())
         self.default_params_dropdown.currentIndexChanged.connect(self.load_default_params)
 
         self.color_by_label = QLabel('Color By:')
         self.color_by_dropdown = QComboBox(self)
-        self.color_by_dropdown.addItems(['cmap', 'P1', 'P2', 'angle', 'rgb'])
+        self.color_by_dropdown.addItems([
+            'cmap', 'cmap (x coord)', 'cmap (y coord)', 'cmap (z coord)', 
+            'cmap (x rot)', 'cmap (y rot)', 'cmap (z rot)', 
+            'P1', 'P2', 'angle', 'rgb'
+        ])
         self.color_by_dropdown.currentIndexChanged.connect(self.handle_color_by_change)
 
         self.color_picker_button = QPushButton('Choose Color', self)
         self.color_picker_button.clicked.connect(self.pick_color)
         self.color_picker_button.setVisible(False)
         self.color_value = (1, 0, 0)
-
-        self.draw_director_checkbox = QCheckBox('Draw Director?', self)
-        
-        self.draw_layer_planes_checkbox = QCheckBox('Draw Layer Planes?', self)
 
         self.generate_button = QPushButton('Generate and Draw Points', self)
         self.generate_button.clicked.connect(self.generate_image)
@@ -163,47 +156,36 @@ class MainApp(QWidget):
         self.block_button = QPushButton('Block Settings', self)
         self.block_button.clicked.connect(self.show_block_settings)
 
-        options_layout.addWidget(self.spacing_label)
-        options_layout.addWidget(self.spacing_x_input)
-        options_layout.addWidget(self.spacing_y_label)
-        options_layout.addWidget(self.spacing_y_input)
-        options_layout.addWidget(self.spacing_z_label)
-        options_layout.addWidget(self.spacing_z_input)
-        options_layout.addWidget(self.size_x_label)
-        options_layout.addWidget(self.size_x_input)
-        options_layout.addWidget(self.size_y_label)
-        options_layout.addWidget(self.size_y_input)
-        options_layout.addWidget(self.size_z_label)
-        options_layout.addWidget(self.size_z_input)
+        self.draw_settings_button = QPushButton('Draw Settings', self)
+        self.draw_settings_button.clicked.connect(self.show_draw_settings)
+
+        options_layout.addWidget(spacing_label)
+        options_layout.addLayout(spacing_grid)
+        options_layout.addWidget(size_label)
+        options_layout.addLayout(size_grid)
+        options_layout.addWidget(randomness_label)
+        options_layout.addLayout(randomness_grid)
         options_layout.addWidget(self.hexatic_checkbox)
-        options_layout.addWidget(self.randomness_x_label)
-        options_layout.addWidget(self.randomness_x_input)
-        options_layout.addWidget(self.randomness_y_label)
-        options_layout.addWidget(self.randomness_y_input)
-        options_layout.addWidget(self.randomness_z_label)
-        options_layout.addWidget(self.randomness_z_input)
         options_layout.addWidget(self.P2_label)
         options_layout.addWidget(self.P2_input)
-        options_layout.addWidget(self.tilt_angle_label)
-        options_layout.addWidget(self.tilt_angle_input)
+        options_layout.addWidget(self.tilt_angle_x_label)
+        options_layout.addWidget(self.tilt_angle_x_input)
+        options_layout.addWidget(self.tilt_angle_y_label)
+        options_layout.addWidget(self.tilt_angle_y_input)
         options_layout.addWidget(self.polar_checkbox)
         options_layout.addWidget(self.cmap_label)
         options_layout.addWidget(self.cmap_dropdown)
         options_layout.addWidget(self.draw_style_label)
         options_layout.addWidget(self.draw_style_dropdown)
-        options_layout.addWidget(self.aspect_ratio_label)
-        options_layout.addWidget(self.aspect_ratio_input)
-        options_layout.addWidget(self.draw_box_checkbox)
         options_layout.addWidget(self.default_params_label)
         options_layout.addWidget(self.default_params_dropdown)
         options_layout.addWidget(self.color_by_label)
         options_layout.addWidget(self.color_by_dropdown)
         options_layout.addWidget(self.color_picker_button)
-        options_layout.addWidget(self.draw_director_checkbox)
-        options_layout.addWidget(self.draw_layer_planes_checkbox)
         options_layout.addWidget(self.generate_button)
         options_layout.addWidget(self.update_button)
         options_layout.addWidget(self.block_button)
+        options_layout.addWidget(self.draw_settings_button)
 
         self.mayavi_widget = MayaviQWidget(self)
         self.mayavi_widget.visualization.scene.background = (1, 1, 1)
@@ -237,34 +219,48 @@ class MainApp(QWidget):
             self.color_value = (color.red() / 255.0, color.green() / 255.0, color.blue() / 255.0)
 
     def load_default_params(self):
-        params = {
-            'Nematic': {'spacing_x': '1.1', 'spacing_y': '1.1', 'spacing_z': '1.1', 'size_x': '8', 'size_y': '8', 'size_z': '8', 'hexatic': False, 'randomness_x': '0.3', 'randomness_y': '0.3', 'randomness_z': '0.3', 'P2': '0.7', 'tilt_angle': '0', 'polar': False},
-            'Smectic A': {'spacing_x': '1.1', 'spacing_y': '1.1', 'spacing_z': '1.1', 'size_x': '8', 'size_y': '8', 'size_z': '8', 'hexatic': False, 'randomness_x': '0.2', 'randomness_y': '0.2', 'randomness_z': '0.05',  'P2': '0.75', 'tilt_angle': '0', 'polar': False},
-            'Smectic B': {'spacing_x': '1.1', 'spacing_y': '1.1', 'spacing_z': '1.1', 'size_x': '8', 'size_y': '8', 'size_z': '8', 'hexatic': True, 'randomness_x': '0.15', 'randomness_y': '0.15', 'randomness_z': '0.025',  'P2': '0.75', 'tilt_angle': '0', 'polar': False},
-            'Smectic C': {'spacing_x': '1.1', 'spacing_y': '1.1', 'spacing_z': '1.1', 'size_x': '8', 'size_y': '8', 'size_z': '8', 'hexatic': False, 'randomness_x': '0.2', 'randomness_y': '0.2', 'randomness_z': '0.05', 'P2': '0.75', 'tilt_angle': '22.5', 'polar': False},
-        }
-        
         selection = self.default_params_dropdown.currentText()
-        if selection in params:
-            self.spacing_x_input.setText(params[selection]['spacing_x'])
-            self.spacing_y_input.setText(params[selection]['spacing_y'])
-            self.spacing_z_input.setText(params[selection]['spacing_z'])
-            self.size_x_input.setText(params[selection]['size_x'])
-            self.size_y_input.setText(params[selection]['size_y'])
-            self.size_z_input.setText(params[selection]['size_z'])
-            self.hexatic_checkbox.setChecked(params[selection]['hexatic'])
-            self.randomness_x_input.setText(params[selection]['randomness_x'])
-            self.randomness_y_input.setText(params[selection]['randomness_y'])
-            self.randomness_z_input.setText(params[selection]['randomness_z'])
-            self.P2_input.setText(params[selection]['P2'])
-            self.tilt_angle_input.setText(params[selection]['tilt_angle'])
-            self.polar_checkbox.setChecked(params[selection]['polar'])
+        if selection in self.default_params:
+            params = self.default_params[selection]
+            self.spacing_x_input.setText(params['spacing_x'])
+            self.spacing_y_input.setText(params['spacing_y'])
+            self.spacing_z_input.setText(params['spacing_z'])
+            self.size_x_input.setText(params['size_x'])
+            self.size_y_input.setText(params['size_y'])
+            self.size_z_input.setText(params['size_z'])
+            self.hexatic_checkbox.setChecked(params['hexatic'])
+            self.randomness_x_input.setText(params['randomness_x'])
+            self.randomness_y_input.setText(params['randomness_y'])
+            self.randomness_z_input.setText(params['randomness_z'])
+            self.P2_input.setText(params['P2'])
+            self.tilt_angle_x_input.setText(params['tilt_angle_x'])
+            self.tilt_angle_y_input.setText(params['tilt_angle_y'])
+            self.polar_checkbox.setChecked(params['polar'])
+
+            blocks = params.get('blocks', {})
+            self.block_settings = {
+                'block_distance_x': float(blocks.get('block_distance_x', 0)),
+                'block_rotation_x': float(blocks.get('block_rotation_x', 0)),
+                'block_distance_y': float(blocks.get('block_distance_y', 0)),
+                'block_rotation_y': float(blocks.get('block_rotation_y', 0)),
+                'block_distance_z': float(blocks.get('block_distance_z', 0)),
+                'block_rotation_z': float(blocks.get('block_rotation_z', 0)),
+                'draw_x_block_plane': blocks.get('draw_x_block_plane', False),
+                'draw_y_block_plane': blocks.get('draw_y_block_plane', False),
+                'draw_z_block_plane': blocks.get('draw_z_block_plane', False)
+            }
 
     def show_block_settings(self):
         dialog = BlockSettingsDialog()
         if dialog.exec_():
             self.block_settings = dialog.get_block_settings()
             print('Block settings updated:', self.block_settings)
+
+    def show_draw_settings(self):
+        dialog = AdvancedVisualizationSettings(self.adv_vis_settings)
+        if dialog.exec_():
+            self.adv_vis_settings = dialog.get_settings()
+            print('Draw settings updated:', self.adv_vis_settings)
 
     def generate_image(self):
         self.coordinates = None  # Reset coordinates to force regeneration
@@ -281,15 +277,21 @@ class MainApp(QWidget):
         randomness_y = float(self.randomness_y_input.text())
         randomness_z = float(self.randomness_z_input.text())
         P2 = float(self.P2_input.text())
-        tilt_angle = float(self.tilt_angle_input.text())
-        aspect_ratio = float(self.aspect_ratio_input.text())
+        tilt_angle_x = float(self.tilt_angle_x_input.text())
+        tilt_angle_y = float(self.tilt_angle_y_input.text())
         cmap = self.cmap_dropdown.currentText()
         draw_style = self.draw_style_dropdown.currentText()
         color_by = self.color_by_dropdown.currentText()
-        draw_box = self.draw_box_checkbox.isChecked()
+        draw_director = self.adv_vis_settings['draw_director']
+        draw_layer_planes = self.adv_vis_settings['draw_layer_planes']
+        draw_box = self.adv_vis_settings['draw_bounding_box']
+        aspect_ratio = float(self.adv_vis_settings['aspect_ratio'])
+        colormap_min = self.adv_vis_settings.get('colormap_min', 0.0)
+        colormap_max = self.adv_vis_settings.get('colormap_max', 1.0)
         polar = self.polar_checkbox.isChecked()
-        draw_director = self.draw_director_checkbox.isChecked()
-        draw_layer_planes = self.draw_layer_planes_checkbox.isChecked()
+
+        # Print colormap min and max for debugging
+        print(f"colormap_min: {colormap_min}, colormap_max: {colormap_max}")
         
         current_options = {
             'spacing_x': spacing_x,
@@ -302,7 +304,8 @@ class MainApp(QWidget):
             'randomness_y': randomness_y,
             'randomness_z': randomness_z,
             'P2': P2,
-            'tilt_angle': tilt_angle,
+            'tilt_angle_x': tilt_angle_x,
+            'tilt_angle_y': tilt_angle_y,
             'block_settings': self.block_settings
         }
 
@@ -314,11 +317,9 @@ class MainApp(QWidget):
                 self.coordinates = hexatic_offset(self.coordinates, plane_offset=True)
             self.coordinates = add_randomness(self.coordinates, randomness_x, randomness_y, randomness_z)
             self.vectors = define_vectors(self.coordinates, 1, P2)
-            self.coordinates, self.vectors = add_tilt(self.coordinates, self.vectors, tilt_angle)
+            self.coordinates, self.vectors = add_tilt(self.coordinates, self.vectors, tilt_angle_x, tilt_angle_y)
             self.apply_block_rotations()
-                
-        self.previous_options = current_options
-
+            
         P1, P1_array, P2_actual, P2_array, average_angle, angles = calculate_average_angle(self.vectors)
         print(f'P1: {P1}, P2: {P2_actual}')
 
@@ -326,52 +327,80 @@ class MainApp(QWidget):
             indices = np.random.choice(len(self.vectors), size=len(self.vectors) // 2, replace=False)
             self.coordinates[indices] = self.coordinates[indices] + self.vectors[indices]
             self.vectors[indices] = -self.vectors[indices]
-
-        scalars = self.mayavi_widget.visualization.get_scalars(self.vectors, color_by, self.color_value, np.array([P1_array, P2_array, angles]))
+        
         property_array = np.array([P1_array, P2_array, angles])
-        
-        # don't worry about recomputing the quiver; its fast. 
+
         if draw_style == 'quiver':
-            self.mayavi_widget.visualize_points(self.coordinates, self.vectors, draw_style, cmap, aspect_ratio, draw_box, color_by, self.color_value, property_array)
-        
-        # But cylinders, no! reuse the geometry: Ensure visualize_points is called when switching to 'cylinder' or if options change
-        if draw_style == 'cylinder' or self.previous_options != current_options:
-            self.mayavi_widget.visualize_points(self.coordinates, self.vectors, draw_style, cmap, aspect_ratio, draw_box, color_by, self.color_value, property_array)
+            self.mayavi_widget.visualize_points(self.coordinates, self.vectors, draw_style, cmap, aspect_ratio, draw_box, color_by, self.color_value, property_array, colormap_min, colormap_max)
+        elif draw_style == 'cylinder' or self.previous_options != current_options:
+            self.mayavi_widget.visualize_points(self.coordinates, self.vectors, draw_style, cmap, aspect_ratio, draw_box, color_by, self.color_value, property_array,  colormap_min, colormap_max,  tube_length=self.adv_vis_settings['cylinder_resolution'], tube_sides=self.adv_vis_settings['cylinder_sides'])
         else:
             self.mayavi_widget.update_cylinder_colors(scalars, color_by, self.color_value, property_array)
-        
+            
         if draw_layer_planes:
-            self.draw_layer_planes(spacing_z, tilt_angle)
+            self.draw_layer_planes(spacing_z)
                 
         if draw_director:
             director = compute_director(self.vectors, polar=polar)
             self.mayavi_widget.visualization.draw_director(director, self.coordinates)
-
-    def apply_block_rotations(self):
+        
+        self.draw_block_planes()
+        self.previous_options = current_options # lastly, update the options list
+        
+    def draw_block_planes(self):
         block_distance_x = self.block_settings.get('block_distance_x', 0)
-        block_rotation_x = self.block_settings.get('block_rotation_x', 0)
         block_distance_y = self.block_settings.get('block_distance_y', 0)
-        block_rotation_y = self.block_settings.get('block_rotation_y', 0)
         block_distance_z = self.block_settings.get('block_distance_z', 0)
-        block_rotation_z = self.block_settings.get('block_rotation_z', 0)
+
+        if self.block_settings.get('draw_x_block_plane', False) and block_distance_x > 0:
+            max_x = np.max(self.coordinates[:, 0])
+            for x in np.arange(0, max_x, block_distance_x):
+                self.mayavi_widget.visualization.draw_plane(self.coordinates, x, 'x')
+
+        if self.block_settings.get('draw_y_block_plane', False) and block_distance_y > 0:
+            max_y = np.max(self.coordinates[:, 1])
+            for y in np.arange(0, max_y, block_distance_y):
+                self.mayavi_widget.visualization.draw_plane(self.coordinates, y, 'y')
+
+        if self.block_settings.get('draw_z_block_plane', False) and block_distance_z > 0:
+            max_z = np.max(self.coordinates[:, 2])
+            for z in np.arange(0, max_z, block_distance_z):
+                self.mayavi_widget.visualization.draw_plane(self.coordinates, z, 'z')
+                
+    def apply_block_rotations(self):
+        block_distance_x = float(self.block_settings.get('block_distance_x', 0))
+        block_rotation_x = float(self.block_settings.get('block_rotation_x', 0))
+        block_distance_y = float(self.block_settings.get('block_distance_y', 0))
+        block_rotation_y = float(self.block_settings.get('block_rotation_y', 0))
+        block_distance_z = float(self.block_settings.get('block_distance_z', 0))
+        block_rotation_z = float(self.block_settings.get('block_rotation_z', 0))
 
         if block_distance_x > 0:
             for i, (point, vector) in enumerate(zip(self.coordinates, self.vectors)):
                 step = int(point[0] // block_distance_x)
                 angle = step * block_rotation_x
-                self.vectors[i] = self.rotate_vector(vector, angle, axis='x')
+                center_x = (step + 0.5) * block_distance_x
+                translated_point = point - np.array([center_x, 0, 0])
+                rotated_vector = self.rotate_vector(vector, angle, axis='x')
+                self.vectors[i] = rotated_vector
 
         if block_distance_y > 0:
             for i, (point, vector) in enumerate(zip(self.coordinates, self.vectors)):
                 step = int(point[1] // block_distance_y)
                 angle = step * block_rotation_y
-                self.vectors[i] = self.rotate_vector(vector, angle, axis='y')
+                center_y = (step + 0.5) * block_distance_y
+                translated_point = point - np.array([0, center_y, 0])
+                rotated_vector = self.rotate_vector(vector, angle, axis='y')
+                self.vectors[i] = rotated_vector
 
         if block_distance_z > 0:
             for i, (point, vector) in enumerate(zip(self.coordinates, self.vectors)):
                 step = int(point[2] // block_distance_z)
                 angle = step * block_rotation_z
-                self.vectors[i] = self.rotate_vector(vector, angle, axis='z')
+                center_z = (step + 0.5) * block_distance_z
+                translated_point = point - np.array([0, 0, center_z])
+                rotated_vector = self.rotate_vector(vector, angle, axis='z')
+                self.vectors[i] = rotated_vector
 
     def rotate_vector(self, vector, angle, axis='x'):
         angle_rad = np.radians(angle)
@@ -395,44 +424,44 @@ class MainApp(QWidget):
             ])
         return np.dot(rotation_matrix, vector)
 
-    def draw_layer_planes(self, spacing_z, tilt_angle):
-        print(f'Drawing layer planes with spacing_z: {spacing_z}, tilt_angle: {tilt_angle}')
-        max_z = np.max(self.coordinates[:, 2])
-        print(f'max_z: {max_z}')
-        for z in np.arange(0, max_z, spacing_z):
-            print(f'Drawing plane at z: {z}')
-            self.mayavi_widget.draw_plane(self.coordinates, z, 'z', tilt_angle)
+    def draw_layer_planes(self, spacing_z):
+        block_distance_x = self.block_settings.get('block_distance_x', 0)
+        block_rotation_x = self.block_settings.get('block_rotation_x', 0)
+        block_distance_y = self.block_settings.get('block_distance_y', 0)
+        block_rotation_y = self.block_settings.get('block_rotation_y', 0)
+        block_distance_z = self.block_settings.get('block_distance_z', 0)
+        block_rotation_z = self.block_settings.get('block_rotation_z', 0)
 
-    def draw_plane(self, coordinates, position, axis, tilt_angle=0):
-        print(f'Drawing plane at position: {position}, axis: {axis}, tilt_angle: {tilt_angle}')
-        if axis == 'x':
-            y = np.linspace(np.min(coordinates[:, 1]), np.max(coordinates[:, 1]), 100)
-            z = np.linspace(np.min(coordinates[:, 2]), np.max(coordinates[:, 2]), 100)
-            y, z = np.meshgrid(y, z)
-            x = np.full_like(y, position)
-            self.mayavi_widget.visualization.scene.mlab.mesh(x, y, z, color=(0.5, 0.5, 0.5), opacity=0.3)
-        elif axis == 'y':
-            x = np.linspace(np.min(coordinates[:, 0]), np.max(coordinates[:, 0]), 100)
-            z = np.linspace(np.min(coordinates[:, 2]), np.max(coordinates[:, 2]), 100)
-            x, z = np.meshgrid(x, z)
-            y = np.full_like(x, position)
-            self.mayavi_widget.visualization.scene.mlab.mesh(x, y, z, color=(0.5, 0.5, 0.5), opacity=0.3)
-        elif axis == 'z':
-            print('zzzzzzz')
-            x = np.linspace(np.min(coordinates[:, 0]), np.max(coordinates[:, 0]), 100)
-            y = np.linspace(np.min(coordinates[:, 1]), np.max(coordinates[:, 1]), 100)
+        if block_distance_z == 0:
+            self.draw_planes_in_range(0, np.max(self.coordinates[:, 2]), spacing_z)
+        else:
+            max_z = np.max(self.coordinates[:, 2])
+            for z_start in np.arange(0, max_z, block_distance_z):
+                z_end = min(z_start + block_distance_z, max_z)
+                angle_z = block_rotation_z * (z_start // block_distance_z)
+                self.draw_planes_in_range(z_start, z_end, spacing_z, angle_z)
+
+    def draw_planes_in_range(self, z_start, z_end, spacing_z, block_rotation_z):
+        for z in np.arange(z_start, z_end, spacing_z):
+            self.draw_plane(z, 'z', block_rotation_z)
+
+    def draw_plane(self, position, axis, block_rotation_z=0):
+        if axis == 'z':
+            x = np.linspace(np.min(self.coordinates[:, 0]), np.max(self.coordinates[:, 0]), 100)
+            y = np.linspace(np.min(self.coordinates[:, 1]), np.max(self.coordinates[:, 1]), 100)
             x, y = np.meshgrid(x, y)
             z = np.full_like(x, position)
-            if tilt_angle != 0:
-                x, y, z = self.apply_tilt(x, y, z, tilt_angle)
-            print(f'Drawing mesh with x: {x.shape}, y: {y.shape}, z: {z.shape}')
+            if block_rotation_z != 0:
+                x, y, z = self.apply_tilt(x, y, z, 0, 0, block_rotation_z)
             self.mayavi_widget.visualization.scene.mlab.mesh(x, y, z, color=(0.5, 0.5, 0.5), opacity=0.3)
-            
-    def apply_tilt(self, x, y, z, tilt_angle):
-        tilt_rad = np.radians(tilt_angle)
-        x_new = x * np.cos(tilt_rad) - z * np.sin(tilt_rad)
-        z_new = x * np.sin(tilt_rad) + z * np.cos(tilt_rad)
-        return x_new, y, z_new
+
+    def apply_tilt(self, x, y, z, tilt_angle_x=0, tilt_angle_y=0, tilt_angle_z=0):
+        if tilt_angle_z != 0:
+            tilt_rad_z = np.radians(tilt_angle_z)
+            x_new = x * np.cos(tilt_rad_z) - y * np.sin(tilt_rad_z)
+            y_new = x * np.sin(tilt_rad_z) + y * np.cos(tilt_rad_z)
+            x, y = x_new, y_new
+        return x, y, z
         
 if __name__ == '__main__':
     app = QApplication(sys.argv)

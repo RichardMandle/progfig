@@ -28,12 +28,28 @@ def define_vectors(points, vector_length, P2):
         vectors[i] = np.array([x, y, z]) * vector_length
     return vectors * vector_length
 
-def add_tilt(points, vectors, tilt_angle):
-    tilt_radians = np.radians(tilt_angle)
-    tilt_matrix = np.array([[np.cos(tilt_radians), -np.sin(tilt_radians), 0],
-                            [np.sin(tilt_radians), np.cos(tilt_radians), 0],
-                            [0, 0, 1]])
-    vectors = np.dot(vectors, tilt_matrix)
+def add_tilt(points, vectors, tilt_angle_x=0, tilt_angle_y=0):
+    if tilt_angle_x == 0 and tilt_angle_y == 0:
+        return points, vectors
+
+    if tilt_angle_x != 0:
+        tilt_rad_x = np.radians(tilt_angle_x)
+        tilt_matrix_x = np.array([
+            [1, 0, 0],
+            [0, np.cos(tilt_rad_x), -np.sin(tilt_rad_x)],
+            [0, np.sin(tilt_rad_x), np.cos(tilt_rad_x)]
+        ])
+        vectors = np.dot(vectors, tilt_matrix_x.T)
+
+    if tilt_angle_y != 0:
+        tilt_rad_y = np.radians(tilt_angle_y)
+        tilt_matrix_y = np.array([
+            [np.cos(tilt_rad_y), 0, np.sin(tilt_rad_y)],
+            [0, 1, 0],
+            [-np.sin(tilt_rad_y), 0, np.cos(tilt_rad_y)]
+        ])
+        vectors = np.dot(vectors, tilt_matrix_y.T)
+
     return points, vectors
 
 def hexatic_offset(points, plane_offset=False):

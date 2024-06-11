@@ -7,9 +7,6 @@ from mayavi import mlab
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 class Visualization(HasTraits):
-    #quality
-    tube_length = 20
-    tube_sides = 4
     scene = Instance(MlabSceneModel, ())
 
     view = View(
@@ -20,16 +17,16 @@ class Visualization(HasTraits):
     def __init__(self, parent=None):
         super(Visualization, self).__init__()
         self.parent = parent
-        self.cylinders = []  # Store cylinder objects
+        self.cylinders = []
 
-    def visualize_points(self, points, vectors=None, draw_style='quiver', cmap='viridis', aspect_ratio=8, draw_box=False, color_by='cmap', color_value=(1, 0, 0), property_array=None):
+    def visualize_points(self, points, vectors=None, draw_style='quiver', cmap='viridis', aspect_ratio=8, draw_box=False, color_by='cmap', color_value=(1, 0, 0), property_array=None, colormap_min=0.0, colormap_max=1.0, tube_length=20, tube_sides=4):
         self.scene.mlab.clf()  # Clear the current figure
         self.cylinders = []  # Clear stored cylinders
 
         if vectors is None:
             self.scene.mlab.points3d(points[:, 0], points[:, 1], points[:, 2], scale_factor=0.1, colormap=cmap)
         else:
-            scalars = self.get_scalars(vectors, color_by, color_value, property_array)
+            scalars = self.get_scalars(vectors, color_by, color_value, property_array, points, colormap_min, colormap_max)
             if draw_style == 'quiver':
                 quiver = self.scene.mlab.quiver3d(points[:, 0], points[:, 1], points[:, 2], vectors[:, 0], vectors[:, 1], vectors[:, 2], scalars=scalars, colormap=cmap, scale_factor=1.0)
                 quiver.glyph.color_mode = 'color_by_scalar'
@@ -38,10 +35,10 @@ class Visualization(HasTraits):
                     if not self.should_draw_cylinder(i, points, 1 / aspect_ratio):
                         continue
                     color = self.normalize_color(scalar) if color_by != 'cmap' else None
-                    cylinder = self.draw_cylinder(point, vector, 1 / aspect_ratio, color, cmap, color_by)
+                    cylinder = self.draw_cylinder(point, vector, 1 / aspect_ratio, color, cmap, color_by, tube_length, tube_sides)
                     self.cylinders.append(cylinder)
 
-        if color_by in ['P1', 'P2', 'angle']:
+        if color_by in ['P1', 'P2', 'angle', 'cmap (x coord)', 'cmap (y coord)', 'cmap (z coord)', 'cmap (x rot)', 'cmap (y rot)', 'cmap (z rot)']:
             colorbar = self.scene.mlab.colorbar(title=color_by, orientation='vertical')
             if colorbar:
                 scalar_bar = colorbar.scalar_bar
@@ -66,7 +63,7 @@ class Visualization(HasTraits):
         x = np.linspace(point[0], point[0] + vector[0], tube_length)
         y = np.linspace(point[1], point[1] + vector[1], tube_length)
         z = np.linspace(point[2], point[2] + vector[2], tube_length)
-        
+
         if color_by == 'cmap':
             tube = mlab.plot3d(x, y, z, np.linspace(0, 1, tube_length), tube_radius=radius, tube_sides=tube_sides, colormap=cmap)
             tube.module_manager.scalar_lut_manager.lut_mode = cmap
@@ -90,18 +87,39 @@ class Visualization(HasTraits):
         else:
             return (max(0, min(1, scalar)),) * 3
 
-    def get_scalars(self, vectors, color_by, color_value, property_array):
+    def get_scalars(self, vectors, color_by, color_value, property_array, points, colormap_min=0.0, colormap_max=1.0):
+        print(f'cmap_min: {colormap_min}; cmap_max: {colormap_max}')
+        
         if color_by == 'P1':
-            return property_array[0]
+            scalars = property_array[0]
         elif color_by == 'P2':
-            return property_array[1]
+            scalars = property_array[1]
         elif color_by == 'angle':
-            return np.degrees(property_array[2])
+            scalars = np.degrees(property_array[2])
+        elif color_by == 'cmap (x coord)':
+            scalars = points[:, 0]
+        elif color_by == 'cmap (y coord)':
+            scalars = points[:, 1]
+        elif color_by == 'cmap (z coord)':
+            scalars = points[:, 2]
+        elif color_by == 'cmap (x rot)':
+            scalars = np.arctan2(vectors[:, 1], vectors[:, 2])
+        elif color_by == 'cmap (y rot)':
+            scalars = np.arctan2(vectors[:, 0], vectors[:, 2])
+        elif color_by == 'cmap (z rot)':
+            scalars = np.arctan2(vectors[:, 1], vectors[:, 0])
         elif color_by == 'cmap':
-            return np.linspace(0, 1, len(vectors))
+            scalars = np.linspace(0, 1, len(vectors))
         elif color_by == 'rgb':
-            return [color_value] * len(vectors)
-        return np.linspace(0, 1, len(vectors))
+            scalars = [color_value] * len(vectors)
+        else:
+            scalars = np.linspace(0, 1, len(vectors))
+        
+        scalars = np.interp(scalars, (np.min(scalars), np.max(scalars)), (colormap_min, colormap_max))
+        # Debug prints to check values after scaling
+        print(f"Scalars after scaling: min={np.min(scalars)}, max={np.max(scalars)}")
+        
+        return scalars
 
     def draw_bounding_box(self, points, vectors):
         x_min = np.min(np.concatenate([points[:, 0], points[:, 0] + vectors[:, 0]]))
@@ -181,14 +199,14 @@ class MayaviQWidget(QWidget):
         layout.addWidget(self.scene_widget)
         self.setLayout(layout)
 
-    def visualize_points(self, points, vectors=None, draw_style='quiver', cmap='viridis', aspect_ratio=8, draw_box=False, color_by='cmap', color_value=(1, 0, 0), property_array=None):
-        self.visualization.visualize_points(points, vectors, draw_style, cmap, aspect_ratio, draw_box, color_by, color_value, property_array)
+    def visualize_points(self, points, vectors=None, draw_style='quiver', cmap='viridis', aspect_ratio=8, draw_box=False, color_by='cmap', color_value=(1, 0, 0), property_array=None, colormap_min=0.0, colormap_max=1.0, tube_length=20, tube_sides=4):
+        self.visualization.visualize_points(points, vectors, draw_style, cmap, aspect_ratio, draw_box, color_by, color_value, property_array, colormap_min, colormap_max, tube_length, tube_sides)
 
     def update_cylinder_colors(self, scalars, color_by, color_value, property_array):
         self.visualization.update_cylinder_colors(scalars, color_by, color_value, property_array)
 
     def draw_director(self, director, points):
         self.visualization.draw_director(director, points)
-        
+
     def draw_plane(self, coordinates, position, axis, tilt_angle=0):
         self.visualization.draw_plane(coordinates, position, axis, tilt_angle)
