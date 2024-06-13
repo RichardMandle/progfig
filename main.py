@@ -105,14 +105,30 @@ class MainApp(QWidget):
         self.P2_label = QLabel('P2 (Nematic Order Parameter):')
         self.P2_input = QLineEdit(self)
         self.P2_input.setText('1.0')
-
+        
+        #tilt
         self.tilt_angle_x_label = QLabel('Tilt Angle X:')
         self.tilt_angle_x_input = QLineEdit(self)
         self.tilt_angle_x_input.setText('0')
-
         self.tilt_angle_y_label = QLabel('Tilt Angle Y:')
         self.tilt_angle_y_input = QLineEdit(self)
         self.tilt_angle_y_input.setText('0')
+        
+        #splay
+        self.splay_angle_x_label = QLabel('Splay Angle X:')
+        self.splay_angle_x_input = QLineEdit(self)
+        self.splay_angle_x_input.setText('0')
+        self.splay_period_x_label = QLabel('Splay Period X:')
+        self.splay_period_x_input = QLineEdit(self)
+        self.splay_period_x_input.setText('10')
+        self.splay_angle_y_label = QLabel('Splay Angle Y:')
+        self.splay_angle_y_input = QLineEdit(self)
+        self.splay_angle_y_input.setText('0')
+        self.splay_period_y_label = QLabel('Splay Period Y:')
+        self.splay_period_y_input = QLineEdit(self)
+        self.splay_period_y_input.setText('10')
+        self.splay_positive_x_checkbox = QCheckBox('Positive Splay X', self)
+        self.splay_positive_y_checkbox = QCheckBox('Positive Splay Y', self)
 
         self.polar_checkbox = QCheckBox('Polar?', self)
 
@@ -172,6 +188,19 @@ class MainApp(QWidget):
         options_layout.addWidget(self.tilt_angle_x_input)
         options_layout.addWidget(self.tilt_angle_y_label)
         options_layout.addWidget(self.tilt_angle_y_input)
+        
+        #new splay options
+        options_layout.addWidget(self.splay_angle_x_label)
+        options_layout.addWidget(self.splay_angle_x_input)
+        options_layout.addWidget(self.splay_period_x_label)
+        options_layout.addWidget(self.splay_period_x_input)
+        options_layout.addWidget(self.splay_positive_x_checkbox)
+        options_layout.addWidget(self.splay_angle_y_label)
+        options_layout.addWidget(self.splay_angle_y_input)
+        options_layout.addWidget(self.splay_period_y_label)
+        options_layout.addWidget(self.splay_period_y_input)
+        options_layout.addWidget(self.splay_positive_y_checkbox)
+
         options_layout.addWidget(self.polar_checkbox)
         options_layout.addWidget(self.cmap_label)
         options_layout.addWidget(self.cmap_dropdown)
@@ -290,9 +319,14 @@ class MainApp(QWidget):
         colormap_max = self.adv_vis_settings.get('colormap_max', 1.0)
         polar = self.polar_checkbox.isChecked()
 
-        # Print colormap min and max for debugging
-        print(f"colormap_min: {colormap_min}, colormap_max: {colormap_max}")
-        
+        # Splay parameters
+        splay_angle_x = float(self.splay_angle_x_input.text())
+        splay_angle_y = float(self.splay_angle_y_input.text())
+        positive_splay_x = self.splay_positive_x_checkbox.isChecked()
+        positive_splay_y = self.splay_positive_y_checkbox.isChecked()
+        splay_period_x = float(self.splay_period_x_input.text())
+        splay_period_y = float(self.splay_period_y_input.text())
+
         current_options = {
             'spacing_x': spacing_x,
             'spacing_y': spacing_y,
@@ -306,6 +340,12 @@ class MainApp(QWidget):
             'P2': P2,
             'tilt_angle_x': tilt_angle_x,
             'tilt_angle_y': tilt_angle_y,
+            'splay_angle_x': splay_angle_x,
+            'splay_angle_y': splay_angle_y,
+            'positive_splay_x': positive_splay_x,
+            'positive_splay_y': positive_splay_y,
+            'splay_period_x': splay_period_x,
+            'splay_period_y': splay_period_y,
             'block_settings': self.block_settings
         }
 
@@ -317,6 +357,7 @@ class MainApp(QWidget):
                 self.coordinates = hexatic_offset(self.coordinates, plane_offset=True)
             self.coordinates = add_randomness(self.coordinates, randomness_x, randomness_y, randomness_z)
             self.vectors = define_vectors(self.coordinates, 1, P2)
+            self.vectors = self.apply_splay(self.coordinates, self.vectors, splay_angle_x, splay_angle_y, positive_splay_x, positive_splay_y, splay_period_x, splay_period_y)
             self.coordinates, self.vectors = add_tilt(self.coordinates, self.vectors, tilt_angle_x, tilt_angle_y)
             self.apply_block_rotations()
             
@@ -380,7 +421,7 @@ class MainApp(QWidget):
                 step = int(point[0] // block_distance_x)
                 angle = step * block_rotation_x
                 center_x = (step + 0.5) * block_distance_x
-                translated_point = point - np.array([center_x, 0, 0])
+                self.coordinates[i] = point - np.array([0, 0, np.cos(np.radians(angle))/2])
                 rotated_vector = self.rotate_vector(vector, angle, axis='x')
                 self.vectors[i] = rotated_vector
 
@@ -389,7 +430,7 @@ class MainApp(QWidget):
                 step = int(point[1] // block_distance_y)
                 angle = step * block_rotation_y
                 center_y = (step + 0.5) * block_distance_y
-                translated_point = point - np.array([0, center_y, 0])
+                self.coordinates[i] = point - np.array([0, 0, np.cos(np.radians(angle))/2])
                 rotated_vector = self.rotate_vector(vector, angle, axis='y')
                 self.vectors[i] = rotated_vector
 
@@ -398,7 +439,6 @@ class MainApp(QWidget):
                 step = int(point[2] // block_distance_z)
                 angle = step * block_rotation_z
                 center_z = (step + 0.5) * block_distance_z
-                translated_point = point - np.array([0, 0, center_z])
                 rotated_vector = self.rotate_vector(vector, angle, axis='z')
                 self.vectors[i] = rotated_vector
 
@@ -433,12 +473,13 @@ class MainApp(QWidget):
         block_rotation_z = self.block_settings.get('block_rotation_z', 0)
 
         if block_distance_z == 0:
-            self.draw_planes_in_range(0, np.max(self.coordinates[:, 2]), spacing_z)
+            self.draw_planes_in_range(0, np.max(self.coordinates[:, 2]), spacing_z, 0)
         else:
             max_z = np.max(self.coordinates[:, 2])
             for z_start in np.arange(0, max_z, block_distance_z):
                 z_end = min(z_start + block_distance_z, max_z)
                 angle_z = block_rotation_z * (z_start // block_distance_z)
+                angle_z = 0 # this seems to improve matters.
                 self.draw_planes_in_range(z_start, z_end, spacing_z, angle_z)
 
     def draw_planes_in_range(self, z_start, z_end, spacing_z, block_rotation_z):
@@ -463,6 +504,29 @@ class MainApp(QWidget):
             x, y = x_new, y_new
         return x, y, z
         
+    def apply_splay(self, coordinates, vectors, splay_angle_x, splay_angle_y, positive_splay_x, positive_splay_y, splay_period_x, splay_period_y):
+        splay_angle_x_rad = np.radians(splay_angle_x)
+        splay_angle_y_rad = np.radians(splay_angle_y)
+        
+        for i, (coord, vec) in enumerate(zip(coordinates, vectors)):
+            if splay_angle_x != 0 and splay_period_x > 0:
+                offset_x = (coord[0] % splay_period_x) / splay_period_x  # Normalize to range [0, 1)
+                if positive_splay_x:
+                    angle = (-0.5 + offset_x) * 2 * splay_angle_x_rad  # Vary from -splay_angle_x to +splay_angle_x
+                else:
+                    angle = (0.5 - offset_x) * 2 * splay_angle_x_rad  # Vary from +splay_angle_x to -splay_angle_x
+                vectors[i] = self.rotate_vector(vec, angle, 'y')
+
+            if splay_angle_y != 0 and splay_period_y > 0:
+                offset_y = (coord[1] % splay_period_y) / splay_period_y  # Normalize to range [0, 1)
+                if positive_splay_y:
+                    angle = (-0.5 + offset_y) * 2 * splay_angle_y_rad  # Vary from -splay_angle_y to +splay_angle_y
+                else:
+                    angle = (0.5 - offset_y) * 2 * splay_angle_y_rad  # Vary from +splay_angle_y to -splay_angle_y
+                vectors[i] = self.rotate_vector(vec, angle, 'x')
+
+        return vectors
+    
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = MainApp()

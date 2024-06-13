@@ -38,7 +38,7 @@ class Visualization(HasTraits):
                     cylinder = self.draw_cylinder(point, vector, 1 / aspect_ratio, color, cmap, color_by, tube_length, tube_sides)
                     self.cylinders.append(cylinder)
 
-        if color_by in ['P1', 'P2', 'angle', 'cmap (x coord)', 'cmap (y coord)', 'cmap (z coord)', 'cmap (x rot)', 'cmap (y rot)', 'cmap (z rot)']:
+        if color_by in ['P1', 'P2', 'angle']:
             colorbar = self.scene.mlab.colorbar(title=color_by, orientation='vertical')
             if colorbar:
                 scalar_bar = colorbar.scalar_bar
@@ -66,9 +66,18 @@ class Visualization(HasTraits):
 
         if color_by == 'cmap':
             tube = mlab.plot3d(x, y, z, np.linspace(0, 1, tube_length), tube_radius=radius, tube_sides=tube_sides, colormap=cmap)
-            tube.module_manager.scalar_lut_manager.lut_mode = cmap
         else:
-            tube = mlab.plot3d(x, y, z, tube_radius=radius, tube_sides=tube_sides, color=color)
+            if isinstance(color, tuple):
+                scalars = np.linspace(0, 1, tube_length)
+                tube = mlab.plot3d(x, y, z, scalars, tube_radius=radius, tube_sides=tube_sides)
+                lut = tube.module_manager.scalar_lut_manager.lut.table.to_array()
+                lut[:, :3] = np.array(color) * 255
+                tube.module_manager.scalar_lut_manager.lut.table = lut
+            else:
+                scalars = np.full(tube_length, color)
+                tube = mlab.plot3d(x, y, z, scalars, tube_radius=radius, tube_sides=tube_sides, colormap=cmap)
+                tube.module_manager.scalar_lut_manager.lut_mode = cmap
+
         return tube
 
     def update_cylinder_colors(self, scalars, color_by, color_value, property_array, tube_length=20):
@@ -88,8 +97,6 @@ class Visualization(HasTraits):
             return (max(0, min(1, scalar)),) * 3
 
     def get_scalars(self, vectors, color_by, color_value, property_array, points, colormap_min=0.0, colormap_max=1.0):
-        print(f'cmap_min: {colormap_min}; cmap_max: {colormap_max}')
-        
         if color_by == 'P1':
             scalars = property_array[0]
         elif color_by == 'P2':
@@ -116,9 +123,7 @@ class Visualization(HasTraits):
             scalars = np.linspace(0, 1, len(vectors))
         
         scalars = np.interp(scalars, (np.min(scalars), np.max(scalars)), (colormap_min, colormap_max))
-        # Debug prints to check values after scaling
-        print(f"Scalars after scaling: min={np.min(scalars)}, max={np.max(scalars)}")
-        
+
         return scalars
 
     def draw_bounding_box(self, points, vectors):
