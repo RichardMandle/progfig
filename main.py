@@ -134,7 +134,7 @@ class MainApp(QWidget):
 
         self.cmap_label = QLabel('Color Map:')
         self.cmap_dropdown = QComboBox(self)
-        valid_colormaps = set(cm.cmap_d.keys())
+        valid_colormaps = set(dir(cm)) # seemingly, just dir the module? #set(cm.cmap_d.keys())
         available_colormaps = [cmap for cmap in lut_mode_list() if cmap in valid_colormaps]
         for colormap in available_colormaps:
             pixmap = self.create_colormap_preview(colormap)
@@ -357,17 +357,17 @@ class MainApp(QWidget):
                 self.coordinates = hexatic_offset(self.coordinates, plane_offset=True)
             self.coordinates = add_randomness(self.coordinates, randomness_x, randomness_y, randomness_z)
             self.vectors = define_vectors(self.coordinates, 1, P2)
-            self.vectors = self.apply_splay(self.coordinates, self.vectors, splay_angle_x, splay_angle_y, positive_splay_x, positive_splay_y, splay_period_x, splay_period_y)
+            self.vectors, self.coordinates = self.apply_splay(self.coordinates, self.vectors, splay_angle_x, splay_angle_y, positive_splay_x, positive_splay_y, splay_period_x, splay_period_y)
             self.coordinates, self.vectors = add_tilt(self.coordinates, self.vectors, tilt_angle_x, tilt_angle_y)
             self.apply_block_rotations()
             
-        P1, P1_array, P2_actual, P2_array, average_angle, angles = calculate_average_angle(self.vectors)
-        print(f'P1: {P1}, P2: {P2_actual}')
-
         if not polar:
             indices = np.random.choice(len(self.vectors), size=len(self.vectors) // 2, replace=False)
             self.coordinates[indices] = self.coordinates[indices] + self.vectors[indices]
             self.vectors[indices] = -self.vectors[indices]
+        
+        P1, P1_array, P2_actual, P2_array, average_angle, angles = calculate_average_angle(self.vectors)
+        print(f'P1: {P1}, P2: {P2_actual}')
         
         property_array = np.array([P1_array, P2_array, angles])
 
@@ -382,7 +382,7 @@ class MainApp(QWidget):
             self.draw_layer_planes(spacing_z)
                 
         if draw_director:
-            director = compute_director(self.vectors, polar=polar)
+            director = compute_director(self.vectors)
             self.mayavi_widget.visualization.draw_director(director, self.coordinates)
         
         self.draw_block_planes()
@@ -503,29 +503,34 @@ class MainApp(QWidget):
             y_new = x * np.sin(tilt_rad_z) + y * np.cos(tilt_rad_z)
             x, y = x_new, y_new
         return x, y, z
-        
+    
+    # might want to look at moving the coordinates so that the splayed / rotated vectors don't overlap with neighbors with alternate splay direction.
+    # needs a logical chek to take place (why is all this code in main anyway?)
     def apply_splay(self, coordinates, vectors, splay_angle_x, splay_angle_y, positive_splay_x, positive_splay_y, splay_period_x, splay_period_y):
-        splay_angle_x_rad = np.radians(splay_angle_x)
-        splay_angle_y_rad = np.radians(splay_angle_y)
-        
         for i, (coord, vec) in enumerate(zip(coordinates, vectors)):
+            original_coord = coord.copy()
+
             if splay_angle_x != 0 and splay_period_x > 0:
                 offset_x = (coord[0] % splay_period_x) / splay_period_x  # Normalize to range [0, 1)
                 if positive_splay_x:
-                    angle = (-0.5 + offset_x) * 2 * splay_angle_x_rad  # Vary from -splay_angle_x to +splay_angle_x
+                    angle = (-0.5 + offset_x) * 2 * splay_angle_x  # Vary from -splay_angle_x to +splay_angle_x
+                    coordinates[i][0] -= np.sin(np.radians(angle))
                 else:
-                    angle = (0.5 - offset_x) * 2 * splay_angle_x_rad  # Vary from +splay_angle_x to -splay_angle_x
+                    angle = (0.5 - offset_x) * 2 * splay_angle_x  # Vary from +splay_angle_x to -splay_angle_x
+                    coordinates[i][0] += np.sin(np.radians(angle))
                 vectors[i] = self.rotate_vector(vec, angle, 'y')
 
             if splay_angle_y != 0 and splay_period_y > 0:
                 offset_y = (coord[1] % splay_period_y) / splay_period_y  # Normalize to range [0, 1)
                 if positive_splay_y:
-                    angle = (-0.5 + offset_y) * 2 * splay_angle_y_rad  # Vary from -splay_angle_y to +splay_angle_y
+                    angle = (-0.5 + offset_y) * 2 * splay_angle_y  # Vary from -splay_angle_y to +splay_angle_y
+                    coordinates[i][1] -= np.sin(np.radians(angle))
                 else:
-                    angle = (0.5 - offset_y) * 2 * splay_angle_y_rad  # Vary from +splay_angle_y to -splay_angle_y
+                    angle = (0.5 - offset_y) * 2 * splay_angle_y  # Vary from +splay_angle_y to -splay_angle_y
+                    coordinates[i][1] += np.sin(np.radians(angle))
                 vectors[i] = self.rotate_vector(vec, angle, 'x')
 
-        return vectors
+        return vectors, coordinates
     
 if __name__ == '__main__':
     app = QApplication(sys.argv)

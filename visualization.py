@@ -19,36 +19,106 @@ class Visualization(HasTraits):
         self.parent = parent
         self.cylinders = []
 
-    def visualize_points(self, points, vectors=None, draw_style='quiver', cmap='viridis', aspect_ratio=8, draw_box=False, color_by='cmap', color_value=(1, 0, 0), property_array=None, colormap_min=0.0, colormap_max=1.0, tube_length=20, tube_sides=4):
-        self.scene.mlab.clf()  # Clear the current figure
-        self.cylinders = []  # Clear stored cylinders
+    def visualize_points(self, points, vectors=None, draw_style='quiver', cmap='viridis',
+                         aspect_ratio=8, draw_box=False, color_by='cmap', color_value=(1, 0, 0),
+                         property_array=None, colormap_min=0.0, colormap_max=1.0,
+                         tube_length=20, tube_sides=4):
+        """
+        Visualize points and associated vectors using various drawing styles.
+        
+        params:
+          points: numpy array of shape (N, 3)
+          vectors: numpy array of shape (N, 3) or None
+          draw_style: string; one of 'quiver', 'quiver-3D', or 'cylinder'
+          cmap: colormap name (used when color_by != 'rgb')
+          aspect_ratio: float, used for spacing when drawing cylinders
+          draw_box: boolean to trigger drawing a bounding box
+          color_by: string, one of 'cmap', 'rgb', 'P1', 'P2', 'angle', etc.
+          color_value: RGB tuple, used when color_by == 'rgb'
+          property_array: additional properties for calculating scalars (e.g., P1, P2, angle)
+          colormap_min, colormap_max: range values for scalar interpolation
+          tube_length: advanced setting; repurposed as glyph resolution for quiver-3D (and cylinders)
+          tube_sides: advanced setting for cylinder drawing
+        """
+        self.scene.mlab.clf()  # clear the current figure
+        self.cylinders = []    # clear any stored cylinders
 
         if vectors is None:
-            self.scene.mlab.points3d(points[:, 0], points[:, 1], points[:, 2], scale_factor=0.1, colormap=cmap)
+            # No vectors provided: simply draw points.
+            self.scene.mlab.points3d(points[:, 0], points[:, 1], points[:, 2],
+                                     scale_factor=0.1, colormap=cmap)
         else:
-            scalars = self.get_scalars(vectors, color_by, color_value, property_array, points, colormap_min, colormap_max)
-            if draw_style == 'quiver':
-                quiver = self.scene.mlab.quiver3d(points[:, 0], points[:, 1], points[:, 2], vectors[:, 0], vectors[:, 1], vectors[:, 2], scalars=scalars, colormap=cmap, scale_factor=1.0)
-                quiver.glyph.color_mode = 'color_by_scalar'
-            elif draw_style == 'cylinder':
-                for i, (point, vector, scalar) in enumerate(zip(points, vectors, scalars)):
-                    if not self.should_draw_cylinder(i, points, 1 / aspect_ratio):
-                        continue
-                    color = self.normalize_color(scalar) if color_by != 'cmap' else None
-                    cylinder = self.draw_cylinder(point, vector, 1 / aspect_ratio, color, cmap, color_by, tube_length, tube_sides)
-                    self.cylinders.append(cylinder)
+            if color_by == 'rgb':
+                scalars = None
+            else:
+                scalars = self.get_scalars(vectors, color_by, color_value,
+                                           property_array, points,
+                                           colormap_min, colormap_max)
 
+            # handle the two primary drawing styles.
+            # note that quiver-3D worked _so well_ it has replaced quiver entirely.
+            if draw_style in ['quiver', 'quiver-3D']:
+                if scalars is None:
+                    # "rgb" option: no scalar mapping.
+                    quiver = self.scene.mlab.quiver3d(points[:, 0], points[:, 1], points[:, 2],
+                                                      vectors[:, 0], vectors[:, 1], vectors[:, 2],
+                                                      mode='arrow', scale_factor=1.0)
+                    # need to turn off the scalar visibility so the constant color is used.
+                    quiver.actor.mapper.scalar_visibility = False
+                    quiver.actor.property.color = color_value
+                else:
+                    quiver = self.scene.mlab.quiver3d(points[:, 0], points[:, 1], points[:, 2],
+                                                      vectors[:, 0], vectors[:, 1], vectors[:, 2],
+                                                      scalars=scalars, colormap=cmap,
+                                                      mode='arrow', scale_factor=1.0)
+                    quiver.glyph.color_mode = 'color_by_scalar'
+                if draw_style == 'quiver-3D':
+                    # the advanced setting for tube_length is repurposed here to adjust the res of our glyph
+                    res = tube_length
+                    quiver.glyph.glyph_source.glyph_source.shaft_resolution = res
+                    quiver.glyph.glyph_source.glyph_source.tip_resolution = res
+
+            elif draw_style == 'cylinder':
+                if scalars is None:
+                    # RGB case: draw each cylinder with a constant color.
+                    for i, (point, vector) in enumerate(zip(points, vectors)):
+                        if not self.should_draw_cylinder(i, points, 1 / aspect_ratio):
+                            continue
+                        tube = self.draw_cylinder(point, vector, 1 / aspect_ratio,
+                                                  color_value, cmap, color_by,
+                                                  tube_length, tube_sides)
+                        # Directly set the actor's color.
+                        tube.actor.property.color = color_value
+                        self.cylinders.append(tube)
+                else:
+                    for i, (point, vector, scalar) in enumerate(zip(points, vectors, scalars)):
+                        if not self.should_draw_cylinder(i, points, 1 / aspect_ratio):
+                            continue
+                        color = self.normalize_color(scalar) if color_by != 'cmap' else None
+                        tube = self.draw_cylinder(point, vector, 1 / aspect_ratio,
+                                                  color, cmap, color_by,
+                                                  tube_length, tube_sides)
+                        self.cylinders.append(tube)
+            else:
+                # Fallback: default to quiver with scalar coloring.
+                quiver = self.scene.mlab.quiver3d(points[:, 0], points[:, 1], points[:, 2],
+                                                  vectors[:, 0], vectors[:, 1], vectors[:, 2],
+                                                  scalars=scalars, colormap=cmap,
+                                                  mode='arrow', scale_factor=1.0)
+                quiver.glyph.color_mode = 'color_by_scalar'
+
+        # Optionally add a colorbar if the coloring is based on computed properties.
         if color_by in ['P1', 'P2', 'angle']:
             colorbar = self.scene.mlab.colorbar(title=color_by, orientation='vertical')
             if colorbar:
                 scalar_bar = colorbar.scalar_bar
-                scalar_bar.label_text_property.color = (0, 0, 0)  # Set label color to black
-                scalar_bar.title_text_property.color = (0, 0, 0)  # Set title color to black
+                scalar_bar.label_text_property.color = (0, 0, 0)
+                scalar_bar.title_text_property.color = (0, 0, 0)
 
         if draw_box:
             self.draw_bounding_box(points, vectors)
 
-        self.scene.render()  # Render within the GUI
+        self.scene.render()  # Render the scene
 
     def should_draw_cylinder(self, index, points, radius):
         for i, point in enumerate(points):
@@ -66,6 +136,11 @@ class Visualization(HasTraits):
 
         if color_by == 'cmap':
             tube = mlab.plot3d(x, y, z, np.linspace(0, 1, tube_length), tube_radius=radius, tube_sides=tube_sides, colormap=cmap)
+            
+            # try to force the lut manager to use the cmap
+            tube.module_manager.scalar_lut_manager.lut_mode = cmap
+            tube.module_manager.scalar_lut_manager.data_range = (0, 1) # should be fine (np.linspace abv) but lets try forcing it,
+
         else:
             if isinstance(color, tuple):
                 scalars = np.linspace(0, 1, tube_length)
@@ -91,10 +166,16 @@ class Visualization(HasTraits):
                 cylinder.mlab_source.color = color
 
     def normalize_color(self, scalar):
-        if isinstance(scalar, (list, tuple)):
-            return tuple(max(0, min(1, c)) for c in scalar)
-        else:
-            return (max(0, min(1, scalar)),) * 3
+        # this code fixes the RGB issue but seems pretty flimsy
+        # if the scalar is an array-like with three elements (i.e. an RGB color), clip each component:
+        try:
+            arr = np.array(scalar)
+            if arr.size == 3:
+                return tuple(np.clip(arr, 0, 1))
+        except Exception:
+            pass
+        # fallback position - lets just assume scalar is a single number
+        return (max(0, min(1, scalar)),) * 3
 
     def get_scalars(self, vectors, color_by, color_value, property_array, points, colormap_min=0.0, colormap_max=1.0):
         if color_by == 'P1':
@@ -118,7 +199,7 @@ class Visualization(HasTraits):
         elif color_by == 'cmap':
             scalars = np.linspace(0, 1, len(vectors))
         elif color_by == 'rgb':
-            scalars = [color_value] * len(vectors)
+            return None
         else:
             scalars = np.linspace(0, 1, len(vectors))
         
@@ -155,7 +236,6 @@ class Visualization(HasTraits):
             self.scene.mlab.plot3d([line[0][0], line[1][0]], [line[0][1], line[1][1]], [line[0][2], line[1][2]], color=(0, 0, 0), tube_radius=None, line_width=1.0)
 
     def draw_director(self, director, points):
-        print(director)
         center = np.mean(points, axis=0)
         director_length = 2.5  # Set the length for the director for better visualization
         start_point = center - (director * director_length / 2)

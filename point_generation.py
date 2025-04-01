@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import vonmises, uniform
 
 def generate_regular_points(spacing, size):
     num_points_x = int(size[0] / spacing[0])
@@ -13,20 +14,52 @@ def generate_regular_points(spacing, size):
                 
     return np.array(points)
 
-def define_vectors(points, vector_length, P2):
-    average_angle = np.degrees(np.arccos((2 * P2 + 1) / 3))
 
-    standard_deviation = (2 - P2) ** (1 - P2) * average_angle
+def define_vectors(points, vector_length, P2):
+    if P2 < -0.5 or P2 > 1.0:
+        raise ValueError("P2 must be between -0.5 and 1.0")
 
     vectors = np.empty((len(points), 3))
-    for i in range(len(points)):
-        theta = np.random.uniform(- np.pi, np.pi)
-        phi = np.random.normal(loc=0, scale=standard_deviation)
-        x = np.sin(np.radians(phi)) * np.cos(theta)
-        y = np.sin(np.radians(phi)) * np.sin(theta)
-        z = np.cos(np.radians(phi))
-        vectors[i] = np.array([x, y, z]) * vector_length
-    return vectors * vector_length
+
+    if P2 == 1: # perfect alignment - easy peasy
+        vectors[:] = np.array([0, 0, 1]) * vector_length
+        return vectors
+
+    if P2 == 0: # isotropic; just a uniform distribution on the sphere 
+        for i in range(len(points)):
+            phi = np.arccos(2 * uniform.rvs() - 1) 
+            theta = uniform.rvs(0, 2 * np.pi)
+            x = np.sin(phi) * np.cos(theta)
+            y = np.sin(phi) * np.sin(theta)
+            z = np.cos(phi)
+            vectors[i] = np.array([x, y, z]) * vector_length
+        return vectors
+    
+    if P2 > 0: # normal positive P2; use the vonmises dist. in scipy:
+        kappa = 3 * P2 / (1 - P2)
+        for i in range(len(points)):
+            theta = uniform.rvs(0, 2 * np.pi)
+            phi = vonmises.rvs(kappa)
+            x = np.sin(phi) * np.cos(theta)
+            y = np.sin(phi) * np.sin(theta)
+            z = np.cos(phi)
+            vectors[i] = np.array([x, y, z]) * vector_length
+        return vectors
+
+    if P2 < 0: # wierdo negative P2; 
+        for i in range(len(points)):
+            theta = uniform.rvs(0, 2 * np.pi)
+            if P2 == -0.5:
+                phi = np.pi / 2  # most likely use case; perfect antinematic order
+            else:
+                phi = np.arccos(2 * uniform.rvs() - 1)  # yeah. this doesn't really work (TO DO)
+            x = np.sin(phi) * np.cos(theta)
+            y = np.sin(phi) * np.sin(theta)
+            z = np.cos(phi)
+            vectors[i] = np.array([x, y, z]) * vector_length
+        return vectors
+
+    return vectors
 
 def add_tilt(points, vectors, tilt_angle_x=0, tilt_angle_y=0):
     if tilt_angle_x == 0 and tilt_angle_y == 0:
@@ -84,11 +117,8 @@ def add_randomness(points, randomness_x=0.0, randomness_y=None, randomness_z=Non
 
     return random_points
 
-def angle_between(v1, v2, polar=False):
-    if polar:
-        dot_product = np.abs(np.dot(v1, v2))
-    else:
-        dot_product = np.dot(v1, v2)
+def angle_between(v1, v2):
+    dot_product = np.dot(v1, v2)
     dot_product = np.clip(dot_product, -1.0, 1.0)
     return np.arccos(dot_product)
 
@@ -98,10 +128,17 @@ def convert_to_0_90_range(angles):
     converted_angles = np.abs(converted_angles - np.pi/2)
     return converted_angles
 
-def compute_director(vectors_array, polar=False):
-    unit_vectors = vectors_array / np.linalg.norm(vectors_array, axis=1)[:, np.newaxis]
-    mean_vector = np.mean(unit_vectors, axis=0)
-    director = mean_vector / np.linalg.norm(mean_vector)
+def compute_director(vectors_array):
+    # idea borrowed from mdtraj order.py <https://github.com/mdtraj/mdtraj/blob/master/mdtraj/geometry/order.py>
+    norm_vectors = vectors_array / np.linalg.norm(vectors_array, axis=1)[:, np.newaxis]
+
+    Q = np.zeros((3, 3))
+    for vec in norm_vectors:
+        Q += np.outer(vec, vec) - np.eye(3) / 3.0
+    Q /= len(norm_vectors)
+    eigenvalues, eigenvectors = np.linalg.eigh(Q)
+    director = eigenvectors[:, np.argmax(eigenvalues)] # our director is the eigenvector corresponding to the largest eigenvalue
+    
     return director
 
 def calculate_average_angle(vectors_array):
@@ -112,17 +149,17 @@ def calculate_average_angle(vectors_array):
 
     average_angle = np.mean(np.degrees(convert_to_0_90_range(angles)))
     
-    P1, P1_array = calculate_P1(angles)
-    P2, P2_array = calculate_P2(angles)
+    P1, P1_array = calculate_P1(np.array(angles))
+    P2, P2_array = calculate_P2(np.array(angles))
     
     return P1, P1_array, P2, P2_array, average_angle, angles
 
 def calculate_P1(angles):
-    P1_array = np.cos(2 * np.radians(angles)) ** 2
+    P1_array = np.cos(angles)
     P1 = np.mean(P1_array)
     return P1, P1_array
 
 def calculate_P2(angles):
-    P2_array = (3 * np.cos(2 * np.radians(angles)) ** 2 - 1) / 2
+    P2_array = (3 * np.cos(angles) ** 2 - 1) / 2
     P2 = np.mean(P2_array)
     return P2, P2_array
