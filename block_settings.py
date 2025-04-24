@@ -1,5 +1,9 @@
 from PyQt5.QtWidgets import QDialog, QFormLayout, QLineEdit, QPushButton, QCheckBox
 
+'''
+This controls the block settings popup.
+'''
+
 class BlockSettingsDialog(QDialog):
     def __init__(self, parent=None):
         super(BlockSettingsDialog, self).__init__(parent)

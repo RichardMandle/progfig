@@ -52,7 +52,7 @@ def define_vectors(points, vector_length, P2):
             if P2 == -0.5:
                 phi = np.pi / 2  # most likely use case; perfect antinematic order
             else:
-                phi = np.arccos(2 * uniform.rvs() - 1)  # yeah. this doesn't really work (TO DO)
+                phi = np.arccos(2 * uniform.rvs() - 1)  # yeah. this STILL doesn't really work (TO DO)
             x = np.sin(phi) * np.cos(theta)
             y = np.sin(phi) * np.sin(theta)
             z = np.cos(phi)
@@ -86,6 +86,7 @@ def add_tilt(points, vectors, tilt_angle_x=0, tilt_angle_y=0):
     return points, vectors
 
 def hexatic_offset(points, plane_offset=False):
+    # if we have hexatic (HCP) packing/order, we need to do something a bit different
     spacing = np.sum(points[1] - points[0])
     offset_points = points.copy()
     points_per_length = int(np.sqrt(np.unique(points[:, 0], return_counts=True)[1][0]))
